@@ -71,9 +71,11 @@ func (p *Poller) Trigger(job internal.Job) error {
 
 // Polling blocks the current goroutine, waiting for network-events.
 func (p *Poller) Polling(callback func(fd int, ev uint32) error) (err error) {
+	// 创建eventlist
 	el := newEventList(InitEvents)
 	var wakenUp bool
 	for {
+		// epoll_wait，注意是-1，表示没有任何事件的时候，goroutine将啊阻塞
 		n, err0 := unix.EpollWait(p.fd, el.events, -1)
 		if err0 != nil && err0 != unix.EINTR {
 			log.Println(err0)
@@ -81,11 +83,13 @@ func (p *Poller) Polling(callback func(fd int, ev uint32) error) (err error) {
 		}
 		for i := 0; i < n; i++ {
 			if fd := int(el.events[i].Fd); fd != p.wfd {
+				// 执行出了些相关事件的回调函数
 				if err = callback(fd, el.events[i].Events); err != nil {
 					return
 				}
 			} else {
 				wakenUp = true
+				// 用来唤醒goroutine，执行任务队列
 				_, _ = unix.Read(p.wfd, p.wfdBuf)
 			}
 		}

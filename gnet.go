@@ -256,6 +256,7 @@ func Serve(eventHandler EventHandler, addr string, opts ...Option) (err error) {
 		fallthrough
 	case "tcp", "tcp4", "tcp6":
 		if options.ReusePort {
+			// 打开reuseport的特性
 			ln.ln, err = netpoll.ReusePortListen(ln.network, ln.addr)
 		} else {
 			ln.ln, err = net.Listen(ln.network, ln.addr)

@@ -90,7 +90,9 @@ func (svr *server) activateLoops(numEventLoop int) error {
 				eventHandler:      svr.eventHandler,
 				calibrateCallback: svr.subEventLoopSet.calibrate,
 			}
+			// 给每个poller添加
 			_ = el.poller.AddRead(svr.ln.fd)
+			// 添加一个epoller
 			svr.subEventLoopSet.register(el)
 		} else {
 			return err
@@ -210,6 +212,8 @@ func serve(eventHandler EventHandler, listener *listener, options *Options) erro
 		}
 		return options.Logger
 	}()
+
+	// 定义编解码器
 	svr.codec = func() ICodec {
 		if options.Codec == nil {
 			return new(BuiltInFrameCodec)

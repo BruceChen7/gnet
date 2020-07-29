@@ -17,18 +17,20 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+// 实现了Conn的接口
 type conn struct {
-	fd             int                    // file descriptor
-	sa             unix.Sockaddr          // remote socket address
-	ctx            interface{}            // user-defined context
-	loop           *eventloop             // connected event-loop
-	buffer         []byte                 // reuse memory of inbound data as a temporary buffer
-	codec          ICodec                 // codec for TCP
-	opened         bool                   // connection opened event fired
-	localAddr      net.Addr               // local addr
-	remoteAddr     net.Addr               // remote addr
-	byteBuffer     *bytebuffer.ByteBuffer // bytes buffer for buffering current packet and data in ring-buffer
-	inboundBuffer  *ringbuffer.RingBuffer // buffer for data from client
+	fd            int                    // file descriptor
+	sa            unix.Sockaddr          // remote socket address
+	ctx           interface{}            // user-defined context
+	loop          *eventloop             // connected event-loop
+	buffer        []byte                 // reuse memory of inbound data as a temporary buffer
+	codec         ICodec                 // codec for TCP
+	opened        bool                   // connection opened event fired
+	localAddr     net.Addr               // local addr
+	remoteAddr    net.Addr               // remote addr
+	byteBuffer    *bytebuffer.ByteBuffer // bytes buffer for buffering current packet and data in ring-buffer
+	inboundBuffer *ringbuffer.RingBuffer // buffer for data from client
+	// 每个连接都有自己的buffer
 	outboundBuffer *ringbuffer.RingBuffer // buffer for data that is ready to write to client
 }
 

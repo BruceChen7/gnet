@@ -43,7 +43,9 @@ func (el *eventloop) loopRun() {
 		el.svr.signalShutdown()
 	}()
 
+	// 如果是主loop，并且设置了Ticker
 	if el.idx == 0 && el.svr.opts.Ticker {
+		// 添加一个goroutine做一些定时任务
 		go el.loopTicker()
 	}
 
@@ -106,12 +108,15 @@ func (el *eventloop) loopRead(c *conn) error {
 		return el.loopCloseConn(c, err)
 	}
 	c.buffer = el.packet[:n]
-
+	// 用来解码
 	for inFrame, _ := c.read(); inFrame != nil; inFrame, _ = c.read() {
+		// 调用用户层的回调
 		out, action := el.eventHandler.React(inFrame, c)
 		if out != nil {
+			// 写frame
 			outFrame, _ := el.codec.Encode(c, out)
 			el.eventHandler.PreWrite()
+			// 写到连接的buffer
 			c.write(outFrame)
 		}
 		switch action {
@@ -125,24 +130,30 @@ func (el *eventloop) loopRead(c *conn) error {
 			return nil
 		}
 	}
+	// 没有达到一条application message，写到 connection buffer中
 	_, _ = c.inboundBuffer.Write(c.buffer)
 
 	return nil
 }
 
 func (el *eventloop) loopWrite(c *conn) error {
+	// 调用用户层的回调
 	el.eventHandler.PreWrite()
 
 	head, tail := c.outboundBuffer.LazyReadAll()
+	// 向fd写head中的数据
 	n, err := unix.Write(c.fd, head)
 	if err != nil {
+		// 写到eagain，那么下次进行继续写
 		if err == unix.EAGAIN {
 			return nil
 		}
+		// 写失败，直接关闭
 		return el.loopCloseConn(c, err)
 	}
+	// 移动buffer的读指针
 	c.outboundBuffer.Shift(n)
-
+	// 都写完了，
 	if len(head) == n && tail != nil {
 		n, err = unix.Write(c.fd, tail)
 		if err != nil {
@@ -153,25 +164,29 @@ func (el *eventloop) loopWrite(c *conn) error {
 		}
 		c.outboundBuffer.Shift(n)
 	}
-
+	// 写buffer都写完了
 	if c.outboundBuffer.IsEmpty() {
+		// 调整成read模式
 		_ = el.poller.ModRead(c.fd)
 	}
 	return nil
 }
 
 func (el *eventloop) loopCloseConn(c *conn, err error) error {
+	// 等待写buffer中的写完
 	if !c.outboundBuffer.IsEmpty() && err == nil {
 		_ = el.loopWrite(c)
 	}
 	err0, err1 := el.poller.Delete(c.fd), unix.Close(c.fd)
 	if err0 == nil && err1 == nil {
+		// 释放map中的键
 		delete(el.connections, c.fd)
 		el.calibrateCallback(el, -1)
 		switch el.eventHandler.OnClosed(c, err) {
 		case Shutdown:
 			return errServerShutdown
 		}
+		// 释放tcp资源
 		c.releaseTCP()
 	} else {
 		if err0 != nil {
@@ -196,6 +211,7 @@ func (el *eventloop) loopWake(c *conn) error {
 	return el.handleAction(c, action)
 }
 
+// 做一些定时任务
 func (el *eventloop) loopTicker() {
 	var (
 		delay time.Duration
@@ -203,7 +219,9 @@ func (el *eventloop) loopTicker() {
 		err   error
 	)
 	for {
+		//
 		err = el.poller.Trigger(func() (err error) {
+			// 用户自己设置回调返回的delay和action
 			delay, action := el.eventHandler.Tick()
 			el.svr.ticktock <- delay
 			switch action {
@@ -217,6 +235,7 @@ func (el *eventloop) loopTicker() {
 			el.svr.logger.Printf("failed to awake poller with error:%v, stopping ticker\n", err)
 			break
 		}
+		// 再一次睡眠
 		if delay, open = <-el.svr.ticktock; open {
 			time.Sleep(delay)
 		} else {

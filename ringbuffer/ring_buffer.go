@@ -36,6 +36,7 @@ func New(size int) *RingBuffer {
 	}
 	size = internal.CeilToPowerOfTwo(size)
 	return &RingBuffer{
+		// 创建slice
 		buf:     make([]byte, size),
 		size:    size,
 		mask:    size - 1,
@@ -58,6 +59,7 @@ func (r *RingBuffer) LazyRead(len int) (head []byte, tail []byte) {
 		if n > len {
 			n = len
 		}
+		// 读取一个切片
 		head = r.buf[r.r : r.r+n]
 		return
 	}
@@ -85,11 +87,12 @@ func (r *RingBuffer) LazyReadAll() (head []byte, tail []byte) {
 		return
 	}
 
+	//  返回有效的数据部分
 	if r.w > r.r {
 		head = r.buf[r.r:r.w]
 		return
 	}
-
+	// 读位置必写位置要小，那么返回两部分的数据
 	head = r.buf[r.r:]
 	if r.w != 0 {
 		tail = r.buf[:r.w]
@@ -196,24 +199,28 @@ func (r *RingBuffer) Write(p []byte) (n int, err error) {
 	if n == 0 {
 		return 0, nil
 	}
-
+	// 获取空闲的字节数据
 	free := r.Free()
 	if n > free {
 		r.malloc(n - free)
 	}
-
+	// 写指针位置大于读指针位置
 	if r.w >= r.r {
 		c1 := r.size - r.w
+		// 剩余容量足够，那么直接copy
 		if c1 >= n {
 			copy(r.buf[r.w:], p)
 			r.w += n
 		} else {
+			// 分成2部分来写
 			copy(r.buf[r.w:], p[:c1])
 			c2 := n - c1
 			copy(r.buf, p[c1:])
+			// 更新写指针位置
 			r.w = c2
 		}
 	} else {
+		// 直接写到后面
 		copy(r.buf[r.w:], p)
 		r.w += n
 	}
